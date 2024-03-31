@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>PDF Flipbook</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
+    <style>
+        html , body {
+            height: 100%;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #f2f2f2; /* Arka plan rengi */
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative; /* fullscreen button position */
+            overflow: hidden; /* disable default scrolling behavior */
+            flex-direction: column; /* yeni eklenen submit düğmesini aşağıya yerleştirmek için */
+        }
+
+        .pdf-viewer {
+            max-width: 80%;
+            max-height: 80%;
+            overflow: hidden; /* disable scrolling inside the viewer */
+            border: 2px solid #ccc;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #fff; /* PDF görüntüleme alanının arka plan rengi */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1); /* Gölge efekti */
+            position: relative; /* center the child elements */
+        }
+
+        .pdf-viewer img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            pointer-events: none;
+            transform-style: preserve-3d;
+        }
+
+        .next-page {
+            animation: flipNext 0.8s ease-in-out;
+        }
+
+        .prev-page {
+            animation: flipPrev 0.8s ease-in-out;
+        }
+
+        @keyframes flipNext {
+            0% {
+                transform: perspective(800px) rotateY(0deg);
+            }
+            50% {
+                transform: perspective(800px) rotateY(-15deg);
+            }
+            100% {
+                transform: perspective(800px) rotateY(0deg);
+            }
+        }
+
+        @keyframes flipPrev {
+            0% {
+                transform: perspective(800px) rotateY(0deg);
+            }
+            50% {
+                transform: perspective(800px) rotateY(15deg);
+            }
+            100% {
+                transform: perspective(800px) rotateY(0deg);
+            }
+        }
+
+        /* Tam ekran düğmesi stili */
+        #fullscreen-btn {
+            margin-top: 10px; /* düğmeyi biraz aşağıya itmek için */
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        /* Input alanı stilleri */
+        #redirect-input {
+            margin-bottom: 10px; /* input alanını biraz aşağıya itmek için */
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        /* Submit düğmesi stilleri */
+#submit-btn {
+    margin-top: 10px; /* Düğmeyi biraz aşağıya itmek için */
+    padding: 10px 20px;
+    background-color: #4CAF50; /* Arka plan rengi */
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s; /* Geçiş efekti */
+}
+
+/* Düğmeye fare üzerine geldiğinde arka plan rengini değiştirme */
+#submit-btn:hover {
+    background-color: #45a049;
+}
+
+        /* Mobile Styles */
+        @media only screen and (max-width: 768px) {
+            .pdf-viewer {
+                max-width: 100%;
+                max-height: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Yeni input alanı -->
+        <input type="text" id="redirect-input" placeholder="Video müəyyən et...">
+        <!-- Submit düğmesi -->
+        <button id="submit-btn">Video Keçid Et</button>
+        <div id="flipbook-container" class="pdf-viewer"></div>
+        <!-- Tam ekran modu düğmesi -->
+        <button id="fullscreen-btn">Tam Ekran Modu</button>
+    </div>
+    <script>
+        const pdfUrl = 'kitab.pdf';
+        const flipbookContainer = document.getElementById('flipbook-container');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const redirectInput = document.getElementById('redirect-input');
+        const submitBtn = document.getElementById('submit-btn'); // Yeni eklenen submit düğmesi
+        let currentPage = 1;
+        let pdfInstance = null;
+
+        pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
+            pdfInstance = pdf;
+            renderPage(currentPage);
+        });
+
+        flipbookContainer.addEventListener('click', (event) => {
+            const containerWidth = flipbookContainer.offsetWidth;
+            const clickPositionX = event.clientX - flipbookContainer.getBoundingClientRect().left;
+
+            if (clickPositionX > containerWidth / 2) {
+                if (currentPage < pdfInstance.numPages) {
+                    currentPage++;
+                    nextPage(currentPage);
+                }
+            } else {
+                if (currentPage > 1) {
+                    currentPage--;
+                    prevPage(currentPage);
+                }
+            }
+        });
+
+        // Fullscreen button event listener
+        fullscreenBtn.addEventListener('click', toggleFullScreen);
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                fullscreenBtn.textContent = 'Tam Ekranı Kapat';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    fullscreenBtn.textContent = 'Tam Ekran Modu';
+                }
+            }
+        }
+
+        function renderPage(pageNumber) {
+            pdfInstance.getPage(pageNumber).then(page => {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                const viewport = page.getViewport({ scale: 1 });
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+
+                page.render(renderContext).promise.then(() => {
+                    const imageData = canvas.toDataURL('image/png');
+                    flipbookContainer.innerHTML = `<img src="${imageData}" alt="Page ${pageNumber}" />`;
+                });
+            });
+        }
+
+        function nextPage(pageNumber) {
+            pdfInstance.getPage(pageNumber).then(page => {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                const viewport = page.getViewport({ scale: 1 });
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+
+                page.render(renderContext).promise.then(() => {
+                    const imageData = canvas.toDataURL('image/png');
+                    flipbookContainer.innerHTML = `<img class="next-page" src="${imageData}" alt="Page ${pageNumber}" />`;
+                    setTimeout(() => {
+                        flipbookContainer.querySelector('img').classList.remove('next-page');
+                    }, 800);
+                });
+            });
+        }
+
+        function prevPage(pageNumber) {
+            pdfInstance.getPage(pageNumber).then(page => {
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                const viewport = page.getViewport({ scale: 1 });
+
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+
+                page.render(renderContext).promise.then(() => {
+                    const imageData = canvas.toDataURL('image/png');
+                    flipbookContainer.innerHTML = `<img class="prev-page" src="${imageData}" alt="Page ${pageNumber}" />`;
+                    setTimeout(() => {
+                        flipbookContainer.querySelector('img').classList.remove('prev-page');
+                    }, 800);
+                });
+            });
+        }
+
+        // Yeni eklenen input alanının değerini kontrol ederek yönlendirme yap
+        submitBtn.addEventListener('click', function() {
+            const inputValue = redirectInput.value;
+            if (inputValue.trim().toLowerCase() === 'səh 3') {
+                window.location.href = 'https://www.youtube.com/watch?v=HLPWyDm6Olk';
+            }
+        });
+    </script>
+</body>
+</html>
